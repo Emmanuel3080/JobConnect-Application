@@ -55,7 +55,7 @@ const SignUp = async (req, res, next) => {
         next(error)
 
     }
-}
+}     
 
 
 const SignIn = async (req, res, next) => {

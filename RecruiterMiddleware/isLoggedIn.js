@@ -1,4 +1,4 @@
-const RecruiterModel = require("../Model/JobPostermODEL");
+const RecruiterModel = require("../Model/JobPosterModel");
 const jwt = require("jsonwebtoken")
 
 const IsRecruiterloggedIn = async (req, res, next) => {

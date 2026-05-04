@@ -1,6 +1,6 @@
 const jwt = require("jsonwebtoken")
 const bcrypt = require("bcryptjs")
-const RecruiterModel = require("../Model/JobPostermODEL")
+const RecruiterModel = require("../Model/JobPosterModel")
 const Job = require("../Model/JobModel")
 const SignUp = async (req, res, next) => {
     const { name, email, password, companyName } = req.body

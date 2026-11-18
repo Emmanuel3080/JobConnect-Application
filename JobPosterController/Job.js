@@ -2,16 +2,41 @@ const Job = require("../Model/JobModel")
 
 
 const addJob = async (req, res, next) => {
-
-    // const { postedBy } = req.body
-
     const recruiterId = req?.user?._id
     try {
-        const job = await Job.create({ ...req.body, postedBy: recruiterId })
+        const {
+            title,
+            description,
+            requirements,
+            location,
+            jobType,
+            salary,
+            company,
+            applicationDeadline,
+            isActive,
+            category,
+            skills,
+            remote
+        } = req.body
 
+        const job = await Job.create({
+            title,
+            description,
+            requirements,
+            location,
+            jobType,
+            salary,
+            company,
+            applicationDeadline,
+            isActive,
+            category,
+            skills,
+            remote,
+            postedBy: recruiterId
+        })
 
         if (!job) {
-            return res.status(401).json({
+            return res.status(400).json({
                 Message: "Unable to Create Job",
                 Status: "Error"
             })
@@ -26,7 +51,6 @@ const addJob = async (req, res, next) => {
     } catch (error) {
         console.log(error);
         next(error)
-
     }
 }
 
@@ -38,7 +62,7 @@ const jobsAdded = async (req, res, next) => {
         })
 
         if (!jobs) {
-            return res.status(401).json({
+            return res.status(404).json({
                 Message: "Unable to Fetch Jobs",
                 Status: "Error"
             })
@@ -58,7 +82,6 @@ const jobsAdded = async (req, res, next) => {
 }
 
 
-
 const getJob = async (req, res, next) => {
     const { jobId } = req.params
     try {
@@ -67,7 +90,7 @@ const getJob = async (req, res, next) => {
             select: "name email phoneNumber companyName"
         })
         if (!job) {
-            return res.status(400).json({
+            return res.status(404).json({
                 Message: "Job Not Found",
                 Status: "Error"
             })
@@ -81,22 +104,53 @@ const getJob = async (req, res, next) => {
     } catch (error) {
         console.log(error);
         next(error)
-
     }
 }
 
 const updateJob = async (req, res, next) => {
     const { jobId } = req.params
     try {
-        const job = await Job.findOneAndUpdate({ _id: jobId },
-            { ...req.body },
-            { returnDocument: 'after' })
-        if (!job) {
-            return res.status(400).json({
+        const existingJob = await Job.findById(jobId)
+        if (!existingJob) {
+            return res.status(404).json({
                 Message: "Job Not Found",
                 Status: "Error"
             })
         }
+
+        if (req.user && existingJob.postedBy.toString() !== req.user._id.toString()) {
+            return res.status(403).json({
+                Message: "You are not authorized to update this job",
+                Status: "Error"
+            })
+        }
+
+        const allowedFields = [
+            "title",
+            "description",
+            "requirements",
+            "location",
+            "jobType",
+            "salary",
+            "company",
+            "applicationDeadline",
+            "isActive",
+            "category",
+            "skills",
+            "remote"
+        ];
+        const updateData = {};
+        for (const key of allowedFields) {
+            if (req.body[key] !== undefined) {
+                updateData[key] = req.body[key];
+            }
+        }
+
+        const job = await Job.findOneAndUpdate(
+            { _id: jobId, postedBy: req.user._id },
+            updateData,
+            { returnDocument: 'after', runValidators: true }
+        )
 
         return res.status(200).json({
             Message: "Job Updated Successfully",
@@ -106,20 +160,29 @@ const updateJob = async (req, res, next) => {
     } catch (error) {
         console.log(error);
         next(error)
-
     }
 }
 
 const deleteJob = async (req, res, next) => {
     const { jobId } = req.params
     try {
-        const job = await Job.findByIdAndDelete(jobId)
-        if (!job) {
-            return res.status(400).json({
+        const existingJob = await Job.findById(jobId)
+        if (!existingJob) {
+            return res.status(404).json({
                 Message: "Job Not Found",
                 Status: "Error"
             })
         }
+
+        if (req.user && existingJob.postedBy.toString() !== req.user._id.toString()) {
+            return res.status(403).json({
+                Message: "You are not authorized to delete this job",
+                Status: "Error"
+            })
+        }
+
+        await Job.findOneAndDelete({ _id: jobId, postedBy: req.user._id })
+
         return res.status(200).json({
             Message: "Job Deleted Successfully",
             Status: "Success",
@@ -128,26 +191,16 @@ const deleteJob = async (req, res, next) => {
     } catch (error) {
         console.log(error);
         next(error)
-
     }
 }
 
 
-
 const getRecruiterJobs = async (req, res, next) => {
-    // const { userId } = req.params
     const { recruiterId } = req.params
     try {
         const myJobs = await Job.find({ postedBy: recruiterId })
-        if (!myJobs) {
-            return res.status(400).json({
-                Message: "Unable to Fetch Jobs",
-                Status: "Error"
-            })
-        }
-
-        if (!myJobs || myJobs.length == 0) {
-            return res.status(401).json({
+        if (!myJobs || myJobs.length === 0) {
+            return res.status(404).json({
                 Message: "You haven't posted any Jobs yet, Failed to fetch Jobs",
                 Status: "Error",
             });
@@ -162,26 +215,25 @@ const getRecruiterJobs = async (req, res, next) => {
     } catch (error) {
         console.log(error);
         next(error)
-
     }
 }
 
 
-
 const deleteAllJobs = async (req, res, next) => {
     try {
-        const job = await Job.deleteMany({})
-        return res.status(400).json({
+        const recruiterId = req?.user?._id
+        const job = await Job.deleteMany({ postedBy: recruiterId })
+        return res.status(200).json({
             Message: "All Jobs Deleted Successfully",
-            Status: "Status",
+            Status: "Success",
             job
         })
     } catch (error) {
         console.log(error);
         next(error)
-
     }
 }
+
 module.exports = {
     addJob,
     getJob,

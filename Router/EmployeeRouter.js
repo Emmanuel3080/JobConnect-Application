@@ -3,20 +3,33 @@ const { SignUp, SignIn, getEmployee, updateEmployee, allEmployee, deleteEmployee
 const isLoggedIn = require("../Middlewares/isLoggedIn")
 const { jobsAdded, getJob } = require("../JobPosterController/Job")
 const uploadEmployeePicture = require("../DocumentMiddleware/uploadProfile")
-const { submitApplication, getApplicationByJob, getEmployeeAppications, getEmployeeApplications } = require("../EmployeeController/ApplyJob")
+const { submitApplication, getEmployeeApplications } = require("../EmployeeController/ApplyJob")
 const uploadEmployeeCv = require("../DocumentMiddleware/uploadCv")
 const EmployeeRouter = express.Router()
 
+// Accept either "cvUrl" or "profileImage" field name and normalize to req.file
+const handleProfileUpload = (req, res, next) => {
+    const upload = uploadEmployeePicture.fields([
+        { name: "cvUrl", maxCount: 1 },
+        { name: "profileImage", maxCount: 1 }
+    ]);
+    upload(req, res, (err) => {
+        if (err) return next(err);
+        if (!req.file && req.files) {
+            req.file = req.files.profileImage?.[0] || req.files.cvUrl?.[0];
+        }
+        next();
+    });
+};
 
-
-EmployeeRouter.post("/signup", uploadEmployeePicture.single("cvUrl"), SignUp)
+EmployeeRouter.post("/signup", handleProfileUpload, SignUp)
 EmployeeRouter.post("/verify_token", verifyToken)
 
 EmployeeRouter.post("/signin", SignIn)
 EmployeeRouter.get("/all", isLoggedIn, allEmployee)
 EmployeeRouter.delete("/delete/:id", isLoggedIn, deleteEmployee)
 EmployeeRouter.get("/:employeeId", isLoggedIn, getEmployee)
-EmployeeRouter.patch("/update/:employeeId", isLoggedIn, uploadEmployeePicture.single("cvUrl"), updateEmployee)
+EmployeeRouter.patch("/update/:employeeId", isLoggedIn, handleProfileUpload, updateEmployee)
 
 
 // Jobs
@@ -29,8 +42,6 @@ EmployeeRouter.post("/apply_job", isLoggedIn, uploadEmployeeCv.single("cvUrl"), 
 
 // Get Applications
 EmployeeRouter.get("/job/applications/:employeeId", isLoggedIn, getEmployeeApplications)
-
-
 
 
 module.exports = EmployeeRouter

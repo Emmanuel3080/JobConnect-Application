@@ -5,7 +5,7 @@ const dotenv = require("dotenv")
 dotenv.config()
 
 const SignUp = async (req, res, next) => {
-    const { name, email, password } = req.body
+    const { name, email, password, phoneNumber, Location, Skills } = req.body
     if (!name || !email || !password) {
         return res.status(400).json({
             Status: "Error",
@@ -14,8 +14,8 @@ const SignUp = async (req, res, next) => {
     }
     const imageFile = req.file;
     if (!imageFile) {
-        return res.status(401).json({
-            Status: "error",
+        return res.status(400).json({
+            Status: "Error",
             Message: "No Image File Found",
         });
     }
@@ -24,7 +24,14 @@ const SignUp = async (req, res, next) => {
         const hashedPassword = await bycrypt.hash(password, salt)
 
         const employeeUser = await EmployeeModel.create({
-            ...req.body, password: hashedPassword, profileImage: imageFile.path
+            name,
+            email,
+            phoneNumber,
+            Location,
+            Skills,
+            password: hashedPassword,
+            profileImage: imageFile.path,
+            role: "employee"
         })
         if (!employeeUser) {
             return res.status(400).json({
@@ -41,9 +48,7 @@ const SignUp = async (req, res, next) => {
             Location: employeeUser.Location,
             Skills: employeeUser.Skills,
             role: employeeUser.role,
-
         }
-
 
         return res.status(201).json({
             Message: "Employee Profile Created Successfully",
@@ -53,13 +58,18 @@ const SignUp = async (req, res, next) => {
     } catch (error) {
         console.log(error);
         next(error)
-
     }
-}     
+}
 
 
 const SignIn = async (req, res, next) => {
     const { password, userEmail } = req.body
+    if (!userEmail || !password) {
+        return res.status(400).json({
+            Message: "Email and Password are required",
+            Status: "Error"
+        })
+    }
     try {
         const user = await EmployeeModel.findOne({ email: userEmail }).select("+password")
 
@@ -70,9 +80,6 @@ const SignIn = async (req, res, next) => {
             })
         }
         const verifyPassword = await bycrypt.compare(password, user.password)
-        // return res.status(201).json({
-        //     user
-        // })
         if (!verifyPassword) {
             return res.status(401).json({
                 Message: "Email or Password Incorrect",
@@ -89,11 +96,14 @@ const SignIn = async (req, res, next) => {
             Location: user?.Location,
             Skills: user?.Skills,
             role: user?.role,
-
         }
 
-        const generateToken = await jwt.sign({ userId: user._id, userEmail: user.email }, process.env.jwtToken, { expiresIn: process.env.jwtExpiryTime })
-        return res.status(201).json({
+        const generateToken = jwt.sign(
+            { userId: user._id, userEmail: user.email },
+            process.env.jwtToken,
+            { expiresIn: process.env.jwtExpiryTime }
+        )
+        return res.status(200).json({
             Message: "Successful Sign in",
             Status: "Success",
             user: employeeInfo,
@@ -102,7 +112,6 @@ const SignIn = async (req, res, next) => {
     } catch (error) {
         console.log(error);
         next(error)
-
     }
 }
 
@@ -110,7 +119,7 @@ const SignIn = async (req, res, next) => {
 const getEmployee = async (req, res, next) => {
     const { employeeId } = req.params
     if (!employeeId) {
-        return res.status(401).json({
+        return res.status(400).json({
             Message: "Id Not Found",
             Status: "Error"
         })
@@ -118,12 +127,12 @@ const getEmployee = async (req, res, next) => {
     try {
         const user = await EmployeeModel.findById(employeeId)
         if (!user) {
-            return res.status(401).json({
+            return res.status(404).json({
                 Message: "Employee Not Found",
                 Status: "Error"
             })
         }
-        return res.status(201).json({
+        return res.status(200).json({
             Message: "Employee Profile Fetched Successfully",
             Status: "Success",
             user
@@ -131,7 +140,6 @@ const getEmployee = async (req, res, next) => {
     } catch (error) {
         console.log(error);
         next(error)
-
     }
 }
 
@@ -144,15 +152,30 @@ const updateEmployee = async (req, res, next) => {
         });
     }
 
+    if (req.user && req.user._id.toString() !== employeeId) {
+        return res.status(403).json({
+            Message: "You are not authorized to update this profile",
+            Status: "Error"
+        });
+    }
+
+    const allowedFields = ["name", "email", "phoneNumber", "Location", "Skills", "profileImage"];
+    const updateData = {};
+    for (const key of allowedFields) {
+        if (req.body[key] !== undefined) {
+            updateData[key] = req.body[key];
+        }
+    }
+
     if (req.file) {
-        req.body.cvUrl = req.file.path;
+        updateData.profileImage = req.file.path;
     }
 
     try {
         const updatedEmployee = await EmployeeModel.findOneAndUpdate(
             { _id: employeeId },
-            { ...req.body },
-            { returnDocument: 'after' }
+            updateData,
+            { returnDocument: 'after', runValidators: true }
         );
 
         if (!updatedEmployee) {
@@ -175,13 +198,12 @@ const updateEmployee = async (req, res, next) => {
 };
 
 
-
 const allEmployee = async (req, res, next) => {
     try {
         const employees = await EmployeeModel.find()
 
         if (!employees) {
-            return res.status(401).json({
+            return res.status(404).json({
                 Message: "Unable to Fetch All Employee",
                 Status: "Error"
             })
@@ -195,18 +217,31 @@ const allEmployee = async (req, res, next) => {
     } catch (error) {
         console.log(error);
         next(error)
-
     }
 }
 
 
 const deleteEmployee = async (req, res, next) => {
     const { id } = req.params
+    if (!id) {
+        return res.status(400).json({
+            Message: "Employee ID not provided",
+            Status: "Error"
+        });
+    }
+
+    if (req.user && req.user._id.toString() !== id) {
+        return res.status(403).json({
+            Message: "You are not authorized to delete this profile",
+            Status: "Error"
+        });
+    }
+
     try {
         const employee = await EmployeeModel.findByIdAndDelete(id)
         if (!employee) {
-            return res.status(400).json({
-                Message: "Employee ID not provided",
+            return res.status(404).json({
+                Message: "Employee not found",
                 Status: "Error"
             });
         }
@@ -218,7 +253,6 @@ const deleteEmployee = async (req, res, next) => {
     } catch (error) {
         console.log(error);
         next(error)
-
     }
 }
 
@@ -237,8 +271,7 @@ const verifyToken = async (req, res, next) => {
             })
         }
 
-
-        const { userId } = await jwt.verify(token, process.env.jwtToken)
+        const { userId } = jwt.verify(token, process.env.jwtToken)
         const user = await EmployeeModel.findById(userId)
         if (!user) {
             return res.status(401).json({
@@ -247,8 +280,8 @@ const verifyToken = async (req, res, next) => {
             })
         }
 
-        return res.status(201).json({
-            Message: "Token is validd",
+        return res.status(200).json({
+            Message: "Token is valid",
             Status: "Success",
             user
         })
@@ -257,7 +290,6 @@ const verifyToken = async (req, res, next) => {
     catch (error) {
         console.log(error);
         next(error)
-
     }
 }
 

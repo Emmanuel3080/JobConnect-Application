@@ -9,7 +9,7 @@ const resend = new Resend(resendApiKey)
 const sendMail = async ({ to, subject, html, from }) => {
     try {
         const { data, error } = await resend.emails.send({
-            from: "onboarding@resend.dev",
+            from: from || "onboarding@resend.dev",
             to,
             subject,
             html,
@@ -24,6 +24,7 @@ const sendMail = async ({ to, subject, html, from }) => {
         return { success: true, data };
     } catch (error) {
         console.log(error);
+        return { success: false, error };
     }
 };
 

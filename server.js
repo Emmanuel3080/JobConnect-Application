@@ -32,17 +32,19 @@ app.use("/company", JobPosterRouter)
 
 
 app.get("/", (req, res) => {
-    res.send("Hello Emmanuel")
+    res.send("Server is active")
 })
-
-
-app.use("/{*any}", handleError);
 
 
 app.all("/{*any}", (req, res) => {
-    return res.status(500).json({
+    return res.status(404).json({
+        Status: "Error",
         Message: `${req.method} ${req.originalUrl} not a valid endpoint on this server`
     })
 })
+
+
+app.use(handleError);
+
 
 

@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-
 const applicationSchema = new mongoose.Schema({
     candidateName: {
         type: String,
@@ -35,9 +34,6 @@ const applicationSchema = new mongoose.Schema({
         ref: "Job",
         required: true
     }
-
-
-
 }, { timestamps: true });
 
 
